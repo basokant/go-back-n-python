@@ -1,14 +1,19 @@
+import queue
+import logging
+from typing import ByteString
+
+
 class GBN_sender:
     def __init__(
         self,
-        input_file,
-        window_size,
-        packet_len,
-        nth_packet,
-        send_queue,
-        ack_queue,
-        timeout_interval,
-        logger,
+        input_file: str,
+        window_size: int,
+        packet_len: int,
+        nth_packet: int,
+        send_queue: queue.Queue[ByteString],
+        ack_queue: queue.Queue[int],
+        timeout_interval: int,
+        logger: logging.Logger,
     ):
         pass
 
@@ -32,7 +37,13 @@ class GBN_sender:
 
 
 class GBN_receiver:
-    def __init__(self, output_file, send_queue, ack_queue, logger):
+    def __init__(
+        self,
+        output_file: str,
+        send_queue: queue.Queue[ByteString],
+        ack_queue: queue.Queue[int],
+        logger: logging.Logger,
+    ):
         pass
 
     def process_packet(self, packet):
