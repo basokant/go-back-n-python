@@ -53,31 +53,44 @@ class GBN_sender:
 
         return packets
 
+    def send_packet(self, packet: str):
+        seq_num = get_seq_num(packet)
+        if seq_num == self.nth_packet and seq_num not in self.dropped_list:
+            self.dropped_list.append(seq_num)
+            self.logger.info(f"packet {seq_num} dropped")
+            return
+
+        if seq_num in self.dropped_list:
+            return
+
+        self.logger.info(f"sending packet {seq_num}")
+
+        self.packet_timers[seq_num] = time.time()
+        self.send_queue.put(packet)
+
     def send_packets(self):
         start = self.base
         end = self.base + self.window_size
         sliding_window = self.packets[start:end]
 
         for packet in sliding_window:
-            seq_num = get_seq_num(packet)
-            if seq_num == self.nth_packet and seq_num not in self.dropped_list:
-                self.dropped_list.append(seq_num)
-                self.logger.info(f"packet {seq_num} dropped")
-                continue
-
-            if seq_num in self.dropped_list:
-                continue
-
-            self.logger.info(f"sending packet {seq_num}")
-
-            self.packet_timers[seq_num] = time.time()
-            self.send_queue.put(packet)
+            self.send_packet(packet)
 
     def send_next_packet(self):
-        pass
+        self.base += 1
+        next_idx = self.base + self.window_size - 1
+        next_packet = self.packets[next_idx]
 
-    def check_timers(self):
-        pass
+        self.send_packet(next_packet)
+
+    def check_timers(self) -> bool:
+        for seq_num, timer in enumerate(self.packet_timers):
+            elapsed = time.time() - timer
+            if elapsed >= self.timeout_interval:
+                self.logger.info(f"packet {seq_num} timed out")
+                return True
+
+        return False
 
     def receive_acks(self):
         pass
