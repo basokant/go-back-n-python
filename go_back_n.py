@@ -93,7 +93,17 @@ class GBN_sender:
         return False
 
     def receive_acks(self):
-        pass
+        while True:
+            seq_num = self.ack_queue.get()
+
+            already_ack = self.acks_list[seq_num]
+            if already_ack:
+                self.logger.info(f"ack {seq_num} received, Ignoring")
+                continue
+
+            self.acks_list[seq_num] = True
+            self.logger.info(f"ack {seq_num} received")
+            self.send_next_packet()
 
     def run(self):
         pass
