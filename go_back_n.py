@@ -1,8 +1,13 @@
 import queue
 import logging
 import textwrap
+import time
 
 SEQ_NUM_LEN = 16
+
+
+def get_seq_num(packet: str):
+    return int(packet[:-SEQ_NUM_LEN], 2)
 
 
 class GBN_sender:
@@ -33,6 +38,7 @@ class GBN_sender:
         self.base = 0
         self.packets = self.prepare_packets()
         self.acks_list = [False for _ in self.packets]
+        self.packet_timers = [0.0 for _ in self.packets]
         self.dropped_list: list[int] = []
 
     def prepare_packets(self) -> list[str]:
@@ -48,7 +54,24 @@ class GBN_sender:
         return packets
 
     def send_packets(self):
-        pass
+        start = self.base
+        end = self.base + self.window_size
+        sliding_window = self.packets[start:end]
+
+        for packet in sliding_window:
+            seq_num = get_seq_num(packet)
+            if seq_num == self.nth_packet and seq_num not in self.dropped_list:
+                self.dropped_list.append(seq_num)
+                self.logger.info(f"packet {seq_num} dropped")
+                continue
+
+            if seq_num in self.dropped_list:
+                continue
+
+            self.logger.info(f"sending packet {seq_num}")
+
+            self.packet_timers[seq_num] = time.time()
+            self.send_queue.put(packet)
 
     def send_next_packet(self):
         pass
