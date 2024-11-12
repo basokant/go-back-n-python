@@ -9,7 +9,11 @@ SEQ_NUM_LEN = 16
 
 
 def get_seq_num(packet: str):
-    return int(packet[:-SEQ_NUM_LEN], 2)
+    return int(packet[-SEQ_NUM_LEN:], 2)
+
+
+def get_data(packet: str) -> str:
+    return packet[:-SEQ_NUM_LEN]
 
 
 class GBN_sender:
@@ -48,10 +52,12 @@ class GBN_sender:
 
         with open(self.input_file, "r") as f:
             data = f.read()
-            binary_data = "".join([bin(ord(c)).zfill(8) for c in data])
+            binary_data = "".join([format(ord(c), "08b") for c in data])
 
             packet_data = textwrap.wrap(binary_data, self.packet_data_len)
-            packets = [d + bin(i).zfill(SEQ_NUM_LEN) for i, d in enumerate(packet_data)]
+            packets = [
+                d + format(i, f"0{SEQ_NUM_LEN}b") for i, d in enumerate(packet_data)
+            ]
 
         return packets
 
@@ -150,7 +156,12 @@ class GBN_receiver:
         return True
 
     def write_to_file(self):
-        pass
+        packet_data = [get_data(packet) for packet in self.packet_list]
+        binary_data = "".join(packet_data)
+        data = "".join([chr(int(byte, 2)) for byte in textwrap.wrap(binary_data, 8)])
+
+        with open(self.output_file, "w") as f:
+            f.write(data)
 
     def run(self):
         while self.send_queue:
