@@ -138,7 +138,7 @@ class GBN_receiver:
     def __init__(
         self,
         output_file: str,
-        send_queue: queue.Queue[str],
+        send_queue: queue.Queue[Union[str, None]],
         ack_queue: queue.Queue[int],
         logger: logging.Logger,
     ):
