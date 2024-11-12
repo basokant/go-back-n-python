@@ -137,7 +137,7 @@ class GBN_receiver:
         self.packet_list: list[str] = []
         self.expected_seq_num: int = 0
 
-    def process_packet(self, packet):
+    def process_packet(self, packet: str):
         seq_num = get_seq_num(packet)
         if seq_num != self.expected_seq_num:
             self.ack_queue.put(self.expected_seq_num - 1)
@@ -153,4 +153,10 @@ class GBN_receiver:
         pass
 
     def run(self):
-        pass
+        while self.send_queue:
+            packet = self.send_queue.get()
+            if packet is None:
+                break
+            self.process_packet(packet)
+
+        self.write_to_file()
