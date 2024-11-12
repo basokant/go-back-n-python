@@ -1,7 +1,9 @@
 import queue
 import logging
 import textwrap
+import threading
 import time
+from typing import Union
 
 SEQ_NUM_LEN = 16
 
@@ -17,7 +19,7 @@ class GBN_sender:
         window_size: int,
         packet_len: int,
         nth_packet: int,
-        send_queue: queue.Queue[str],
+        send_queue: queue.Queue[Union[str, None]],
         ack_queue: queue.Queue[int],
         timeout_interval: int,
         logger: logging.Logger,
@@ -99,14 +101,24 @@ class GBN_sender:
             already_ack = self.acks_list[seq_num]
             if already_ack:
                 self.logger.info(f"ack {seq_num} received, Ignoring")
+                self.ack_queue.task_done()
                 continue
 
             self.acks_list[seq_num] = True
             self.logger.info(f"ack {seq_num} received")
             self.send_next_packet()
+            self.ack_queue.task_done()
 
     def run(self):
-        pass
+        self.send_packets()
+        threading.Thread(target=self.receive_acks).start()
+
+        while self.base < self.packet_len:
+            timeout = self.check_timers()
+            if timeout:
+                self.send_packets()
+
+        self.send_queue.put(None)
 
 
 class GBN_receiver:
