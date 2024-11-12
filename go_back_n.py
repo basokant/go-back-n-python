@@ -48,6 +48,10 @@ class GBN_sender:
         self.packet_timers = [0.0 for _ in self.packets]
         self.dropped_list: list[int] = []
 
+        logger.info(
+            f"{len(self.packets)} packets created, Window size: {self.window_size}, Packet length: {self.packet_len}, Nth packet to be dropped: {self.nth_packet}, Timeout interval: {self.timeout_interval}"
+        )
+
     def prepare_packets(self) -> list[str]:
         packets = []
 
@@ -67,18 +71,16 @@ class GBN_sender:
         self.logger.info(f"sending packet {seq_num}")
 
         is_nth_packet = self.sent_packet_num == self.nth_packet
+        self.packet_timers[seq_num] = time.time()
+
         if is_nth_packet and seq_num not in self.dropped_list:
             self.dropped_list.append(seq_num)
             self.logger.info(f"packet {seq_num} dropped")
             self.sent_packet_num = 1
             return
 
-        if seq_num in self.dropped_list:
-            return
-
-        self.packet_timers[seq_num] = time.time()
-        self.send_queue.put(packet)
         self.sent_packet_num += 1
+        self.send_queue.put(packet)
 
     def send_packets(self):
         start = self.base
@@ -102,17 +104,19 @@ class GBN_sender:
         end = self.base + self.window_size
         sliding_window = self.packets[start:end]
         packet_timers = self.packet_timers[start:end]
+
         for packet, timer in zip(sliding_window, packet_timers):
             seq_num = get_seq_num(packet)
             elapsed = time.time() - timer
-            if timer != 0 and elapsed >= self.timeout_interval:
+
+            if timer != 0.0 and elapsed >= self.timeout_interval:
                 self.logger.info(f"packet {seq_num} timed out")
                 return True
 
         return False
 
     def receive_acks(self):
-        while True:
+        while not self.acks_list[-1]:
             seq_num = self.ack_queue.get()
 
             already_ack = self.acks_list[seq_num]
@@ -130,13 +134,16 @@ class GBN_sender:
 
     def run(self):
         self.send_packets()
-        threading.Thread(target=self.receive_acks).start()
+        receive_acks_thread = threading.Thread(target=self.receive_acks)
+        receive_acks_thread.start()
 
-        while self.base < self.packet_len:
+        while self.base < len(self.packets):
             timeout = self.check_timers()
             if timeout:
                 self.send_packets()
 
+        receive_acks_thread.join()
+        self.logger.info("All packets have been sent and acknowledgements processed")
         self.send_queue.put(None)
 
 
@@ -181,7 +188,10 @@ class GBN_receiver:
         while self.send_queue:
             packet = self.send_queue.get()
             if packet is None:
+                self.send_queue.task_done()
                 break
+
             self.process_packet(packet)
+            self.send_queue.task_done()
 
         self.write_to_file()
