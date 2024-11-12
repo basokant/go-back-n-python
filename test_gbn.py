@@ -15,7 +15,7 @@ timeout_interval = 1
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 file_handler = logging.FileHandler(log_file, "w")
-file_handler.setFormatter(logging.Formatter("%(asctime)s - %(message)s"))
+file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s: %(message)s"))
 logger.addHandler(file_handler)
 
 send_queue, ack_queue = queue.Queue(), queue.Queue()

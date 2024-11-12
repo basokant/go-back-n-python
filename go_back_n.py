@@ -40,7 +40,7 @@ class GBN_sender:
         self.ack_queue = ack_queue
         self.timeout_interval = timeout_interval
 
-        self.logger = logger
+        self.logger = logger.getChild("Sender")
 
         self.base = 0
         self.packets = self.prepare_packets()
@@ -64,6 +64,8 @@ class GBN_sender:
 
     def send_packet(self, packet: str):
         seq_num = get_seq_num(packet)
+        self.logger.info(f"sending packet {seq_num}")
+
         is_nth_packet = self.sent_packet_num == self.nth_packet
         if is_nth_packet and seq_num not in self.dropped_list:
             self.dropped_list.append(seq_num)
@@ -73,8 +75,6 @@ class GBN_sender:
 
         if seq_num in self.dropped_list:
             return
-
-        self.logger.info(f"sending packet {seq_num}")
 
         self.packet_timers[seq_num] = time.time()
         self.send_queue.put(packet)
@@ -93,15 +93,19 @@ class GBN_sender:
         next_idx = self.base + self.window_size - 1
         if 0 > next_idx or next_idx > len(self.packets) - 1:
             return
-        print(next_idx)
-        next_packet = self.packets[next_idx]
 
+        next_packet = self.packets[next_idx]
         self.send_packet(next_packet)
 
     def check_timers(self) -> bool:
-        for seq_num, timer in enumerate(self.packet_timers):
+        start = self.base
+        end = self.base + self.window_size
+        sliding_window = self.packets[start:end]
+        packet_timers = self.packet_timers[start:end]
+        for packet, timer in zip(sliding_window, packet_timers):
+            seq_num = get_seq_num(packet)
             elapsed = time.time() - timer
-            if elapsed >= self.timeout_interval:
+            if timer != 0 and elapsed >= self.timeout_interval:
                 self.logger.info(f"packet {seq_num} timed out")
                 return True
 
@@ -119,6 +123,8 @@ class GBN_sender:
 
             self.logger.info(f"ack {seq_num} received")
             self.acks_list[seq_num] = True
+            self.packet_timers[seq_num] = 0
+
             self.send_next_packet()
             self.ack_queue.task_done()
 
@@ -145,7 +151,7 @@ class GBN_receiver:
         self.output_file = output_file
         self.send_queue = send_queue
         self.ack_queue = ack_queue
-        self.logger = logger
+        self.logger = logger.getChild("Receiver")
 
         self.packet_list: list[str] = []
         self.expected_seq_num: int = 0
