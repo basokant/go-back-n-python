@@ -129,10 +129,25 @@ class GBN_receiver:
         ack_queue: queue.Queue[int],
         logger: logging.Logger,
     ):
-        pass
+        self.output_file = output_file
+        self.send_queue = send_queue
+        self.ack_queue = ack_queue
+        self.logger = logger
+
+        self.packet_list: list[str] = []
+        self.expected_seq_num: int = 0
 
     def process_packet(self, packet):
-        pass
+        seq_num = get_seq_num(packet)
+        if seq_num != self.expected_seq_num:
+            self.ack_queue.put(self.expected_seq_num - 1)
+            self.logger.info(f"packet {seq_num} received out of order")
+            return False
+
+        self.packet_list.append(packet)
+        self.ack_queue.put(seq_num)
+        self.logger.info(f"packet {seq_num} received")
+        return True
 
     def write_to_file(self):
         pass
