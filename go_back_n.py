@@ -117,20 +117,22 @@ class GBN_sender:
 
     def receive_acks(self):
         while not self.acks_list[-1]:
-            seq_num = self.ack_queue.get()
+            try:
+                seq_num = self.ack_queue.get(timeout=0.1)
+                already_ack = self.acks_list[seq_num]
+                if already_ack:
+                    self.logger.info(f"ack {seq_num} received, Ignoring")
+                    self.ack_queue.task_done()
+                    continue
 
-            already_ack = self.acks_list[seq_num]
-            if already_ack:
-                self.logger.info(f"ack {seq_num} received, Ignoring")
+                self.logger.info(f"ack {seq_num} received")
+                self.acks_list[seq_num] = True
+                self.packet_timers[seq_num] = 0
+
+                self.send_next_packet()
                 self.ack_queue.task_done()
-                continue
-
-            self.logger.info(f"ack {seq_num} received")
-            self.acks_list[seq_num] = True
-            self.packet_timers[seq_num] = 0
-
-            self.send_next_packet()
-            self.ack_queue.task_done()
+            except queue.Empty:
+                pass
 
     def run(self):
         self.send_packets()
@@ -186,12 +188,15 @@ class GBN_receiver:
 
     def run(self):
         while self.send_queue:
-            packet = self.send_queue.get()
-            if packet is None:
-                self.send_queue.task_done()
-                break
+            try:
+                packet = self.send_queue.get(timeout=0.1)
+                if packet is None:
+                    self.send_queue.task_done()
+                    break
 
-            self.process_packet(packet)
-            self.send_queue.task_done()
+                self.process_packet(packet)
+                self.send_queue.task_done()
+            except queue.Empty:
+                pass
 
         self.write_to_file()
